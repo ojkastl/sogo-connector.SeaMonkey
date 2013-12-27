@@ -240,7 +240,17 @@ _sogoWebDAVPrompt.prototype = {
             let prompter2 = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                                       .getService(Components.interfaces.nsIPromptFactory)
                                       .getPrompt(null, Components.interfaces.nsIAuthPrompt2);
-            return prompter2.promptAuth(aChannel, aLevel, aAuthInfo);
+            let res = prompter2.promptAuth(aChannel, aLevel, aAuthInfo);
+            if (res) {
+                // We store the password
+                let newLoginInfo = Components.classes["@mozilla.org/login-manager/loginInfo;1"]
+                                             .createInstance(Components.interfaces.nsILoginInfo);
+                newLoginInfo.init(hostRealm.prePath, null, hostRealm.realm, aAuthInfo.username, aAuthInfo.password, "", "");
+                let loginManager = Components.classes["@mozilla.org/login-manager;1"]
+                                             .getService(Components.interfaces.nsILoginManager);
+                loginManager.addLogin(newLoginInfo);
+            }
+            return res;
         }
     },
 
@@ -300,7 +310,41 @@ _sogoWebDAVPrompt.prototype = {
             let prompter2 = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                                       .getService(Components.interfaces.nsIPromptFactory)
                                       .getPrompt(null, Components.interfaces.nsIAuthPrompt2);
-            prompter2.asyncPromptAuth(aChannel, aCallback, aContext, aLevel, aAuthInfo);
+            //prompter2.asyncPromptAuth(aChannel, aCallback, aContext, aLevel, aAuthInfo);
+            let res = prompter2.promptAuth(aChannel, aLevel, aAuthInfo);
+            if (res) {
+                // We store the password
+                let newLoginInfo = Components.classes["@mozilla.org/login-manager/loginInfo;1"]
+                                             .createInstance(Components.interfaces.nsILoginInfo);
+                newLoginInfo.init(hostRealm.prePath, null, hostRealm.realm, aAuthInfo.username, aAuthInfo.password, "", "");
+                let loginManager = Components.classes["@mozilla.org/login-manager;1"]
+                                             .getService(Components.interfaces.nsILoginManager);
+                loginManager.addLogin(newLoginInfo);
+
+                // We cannot call the callback directly here so call it from a timer
+                let timerCallback = {
+                    notify: function(timer) {
+                        aCallback.onAuthAvailable(aContext, aAuthInfo);
+                    }
+                };
+                let timer = Components.classes["@mozilla.org/timer;1"]
+                            .createInstance(Components.interfaces.nsITimer);
+                timer.initWithCallback(timerCallback,
+                                       0,
+                                       Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+            } else {
+                // We cannot call the callback directly here so call it from a timer
+                let timerCallback = {
+                    notify: function(timer) {
+                        aCallback.onAuthCancelled(aContext, res);
+                    }
+                };
+                let timer = Components.classes["@mozilla.org/timer;1"]
+                            .createInstance(Components.interfaces.nsITimer);
+                timer.initWithCallback(timerCallback,
+                                       0,
+                                       Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+            }
         }
     }
 };
@@ -373,7 +417,7 @@ function sogoWebDAV(url, target, data, synchronous, asJSON) {
     else {
         this.synchronous = synchronous;
     }
-    
+
     this.requestJSONResponse = false;
     this.requestXMLResponse = false;
 
@@ -484,7 +528,7 @@ sogoWebDAV.prototype = {
         }
         catch(e) {
             dump("sogoWebDAV: trapped exception: " + e + "\n");
-            setTimeout("throw new Error('sogoWebDAV could not download calendar. Try disabling proxy server.')",0); 
+            setTimeout("throw new Error('sogoWebDAV could not download calendar. Try disabling proxy server.')",0);
             status = 499;
         }
         try {
