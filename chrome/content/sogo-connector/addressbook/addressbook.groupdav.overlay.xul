@@ -71,7 +71,7 @@
       insertbefore="peopleSearchInput"
       >
       <menupopup id="SCSearchCriteriaButtonMenu">
-        <menuitem type="radio" checked="true" label="&SearchNameOrEmail.label;" value="0"
+        <menuitem type="radio" checked="true" label="Name or Email" value="0"
           sc-search-criteria=""
           oncommand="SCSetSearchCriteria(this);"/>
         <menuitem type="radio" label="&SearchCategory.label;" value="1"
